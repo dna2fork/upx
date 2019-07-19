@@ -2,8 +2,8 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-   Copyright (C) 1996-2017 Laszlo Molnar
+   Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+   Copyright (C) 1996-2018 Laszlo Molnar
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -181,6 +181,10 @@ bool PackHeader::fillPackHeader(const upx_bytep buf, int blen) {
     level = p[7];
     filter_cto = 0;
 
+    if (opt->debug.debug_level) {
+        fprintf(stderr, "  fillPackHeader  version=%d  format=%d  method=%d  level=%d\n", version,
+                format, method, level);
+    }
     const int size = getPackHeaderSize();
     if (boff + size <= 0 || boff + size > blen)
         throwCantUnpack("header corrupted 2");

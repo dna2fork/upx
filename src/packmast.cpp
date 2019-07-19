@@ -2,8 +2,8 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-   Copyright (C) 1996-2017 Laszlo Molnar
+   Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+   Copyright (C) 1996-2018 Laszlo Molnar
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -137,11 +137,13 @@ Packer *PackMaster::visitAllPackers(visit_func_t func, InputFile *f, const optio
                                     void *user) {
     Packer *p = NULL;
 
-#define D(klass)                                                                                   \
+#define D(Klass)                                                                                   \
     ACC_BLOCK_BEGIN                                                                                \
+    Klass *const kp = new Klass(f);                                                                \
     if (o->debug.debug_level)                                                                      \
-        fprintf(stderr, "visitAllPackers: %s\n", #klass);                                          \
-    if ((p = func(new klass(f), user)) != NULL)                                                    \
+        fprintf(stderr, "visitAllPackers: (ver=%d, fmt=%3d) %s\n", kp->getVersion(),               \
+                kp->getFormat(), #Klass);                                                          \
+    if ((p = func(kp, user)) != NULL)                                                              \
         return p;                                                                                  \
     ACC_BLOCK_END
 
@@ -194,6 +196,7 @@ Packer *PackMaster::visitAllPackers(visit_func_t func, InputFile *f, const optio
         D(PackLinuxElf32armBe);
         D(PackLinuxElf64arm);
         D(PackLinuxElf32ppc);
+        D(PackLinuxElf64ppc);
         D(PackLinuxElf64ppcle);
         D(PackLinuxElf32mipsel);
         D(PackLinuxElf32mipseb);
@@ -215,18 +218,19 @@ Packer *PackMaster::visitAllPackers(visit_func_t func, InputFile *f, const optio
     D(PackCom);
 
     // Mach (MacOS X PowerPC)
+    D(PackDylibAMD64);
     D(PackMachPPC32);
     D(PackMachPPC64LE);
     D(PackMachI386);
     D(PackMachAMD64);
     D(PackMachARMEL);
+    D(PackMachARM64EL);
 
     // 2010-03-12  omit these because PackMachBase<T>::pack4dylib (p_mach.cpp)
     // does not understand what the Darwin (Apple Mac OS X) dynamic loader
     // assumes about .dylib file structure.
     //   D(PackDylibI386);
     //   D(PackDylibPPC32);
-    //   D(PackDylibAMD64);
 
     return NULL;
 #undef D

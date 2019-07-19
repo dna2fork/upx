@@ -3,9 +3,9 @@
 ;
 ;  This file is part of the UPX executable compressor.
 ;
-;  Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-;  Copyright (C) 1996-2017 Laszlo Molnar
-;  Copyright (C) 2000-2017 John F. Reiser
+;  Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+;  Copyright (C) 1996-2018 Laszlo Molnar
+;  Copyright (C) 2000-2018 John F. Reiser
 ;  All Rights Reserved.
 ;
 ;  UPX and the UCL library are free software; you can redistribute them
@@ -146,7 +146,8 @@ sz_b_info= 12
 
 // Decompress the rest of this loader, and jump to it.
 unfold:
-        pop ebx  // &{ b_info:{sz_unc, sz_cpr, 4{byte}}, compressed_data...}
+        pop esi; lodsd; // push %eax  // O_BINFO
+        push esi; pop ebx  // &{ b_info:{sz_unc, sz_cpr, 4{byte}}, compressed_data...}
         mov ecx,[sz_cpr + ebx]
         lea esi,[             -1+ sz_b_info + ecx + ebx]  // &hi_byte folded original
         mov edi,[sz_unc + ebx]
@@ -176,6 +177,7 @@ unfold:
 main:
         pop ebp  // &decompress
         call unfold
+        .long 0  // O_BINFO
             // compressed fold_elf86 follows
 
 /* vim:set ts=8 sw=8 et: */

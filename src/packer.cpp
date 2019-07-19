@@ -2,8 +2,8 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-   Copyright (C) 1996-2017 Laszlo Molnar
+   Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+   Copyright (C) 1996-2018 Laszlo Molnar
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -47,7 +47,7 @@ Packer::Packer(InputFile *f) :
     if (fi != NULL)
         file_size = fi->st_size();
     uip = new UiPacker(this);
-    memset(&ph, 0, sizeof(ph));
+    mem_clear(&ph, sizeof(ph));
 }
 
 
@@ -203,7 +203,7 @@ bool Packer::compress(upx_bytep i_ptr, unsigned i_len, upx_bytep o_ptr,
     // update checksum of uncompressed data
     ph.u_adler = upx_adler32(i_ptr, ph.u_len, ph.u_adler);
 
-    // set compression paramters
+    // set compression parameters
     upx_compress_config_t cconf; cconf.reset();
     if (cconf_parm)
         cconf = *cconf_parm;
@@ -665,7 +665,7 @@ unsigned Packer::getRandomId() const
 // this is called directly after the constructor from class PackMaster
 void Packer::initPackHeader()
 {
-    memset(&ph, 0, sizeof(ph));
+    mem_clear(&ph, sizeof(ph));
     ph.version = getVersion();
     ph.format = getFormat();
     ph.method = M_NONE;
@@ -733,7 +733,7 @@ bool Packer::getPackHeader(void *b, int blen, bool allow_incompressible)
     {
 #if 0
         // FIXME: does this check make sense w.r.t. overlays ???
-        if (ph.format == UPX_F_W32_PE || ph.format == UPX_F_DOS_EXE)
+        if (ph.format == UPX_F_WIN32_PE || ph.format == UPX_F_DOS_EXE)
             // may get longer
             ((void)0);
         else
@@ -1367,7 +1367,7 @@ void Packer::compressWithFilters(upx_bytep i_ptr, unsigned i_len,
                                  const unsigned overlap_range,
                                  const upx_compress_config_t *cconf,
                                  int filter_strategy,
-                                 int inhibit_compression_check)
+                                 bool inhibit_compression_check)
 {
     parm_ft->buf_len = f_len;
     // struct copies
@@ -1568,7 +1568,7 @@ void Packer::compressWithFilters(Filter *ft,
                                  const unsigned overlap_range,
                                  const upx_compress_config_t *cconf,
                                  int filter_strategy,
-                                 int inhibit_compression_check)
+                                 bool inhibit_compression_check)
 {
     compressWithFilters(ft, overlap_range, cconf, filter_strategy,
                         0, 0, 0, NULL, 0, inhibit_compression_check);
@@ -1583,7 +1583,7 @@ void Packer::compressWithFilters(Filter *ft,
                                  unsigned ibuf_off,
                                  unsigned obuf_off,
                                  const upx_bytep hdr_ptr, unsigned hdr_len,
-                                 int inhibit_compression_check)
+                                 bool inhibit_compression_check)
 {
     ibuf.checkState(); obuf.checkState();
 

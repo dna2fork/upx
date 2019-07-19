@@ -2,7 +2,7 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 2007-2017 John F. Reiser
+   Copyright (C) 2007-2018 John F. Reiser
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -45,7 +45,8 @@
     enum { // cputype
         CPU_TYPE_I386      =          7,
         CPU_TYPE_X86_64    = 0x01000007,
-        CPU_TYPE_ARM       =         12,
+        CPU_TYPE_ARM       = 0x0000000c,
+        CPU_TYPE_ARM64     = 0x0100000c,
         CPU_TYPE_POWERPC   = 0x00000012,
         CPU_TYPE_POWERPC64 = 0x01000012,
         CPU_TYPE_POWERPC64LE = 0x01000021
@@ -57,7 +58,9 @@
     };
     enum { // filetype
         MH_EXECUTE = 2,
-        MH_DYLIB   = 6,
+        MH_PRELOAD = 5,     /* preloaded executable */
+        MH_DYLIB   = 6,     /* dynamically bound shared library */
+        MH_DYLINKER= 7,     /* /usr/bin/dyld */
         MH_BUNDLE  = 8      /* dynamically bound bundle file */
     };
     enum { // flags
@@ -83,23 +86,31 @@
         LC_LOAD_DYLINKER = 0xe,
         LC_ROUTINES      = 0x11,
         LC_TWOLEVEL_HINTS= 0x16,
+        LC_LOAD_WEAK_DYLIB= (0x18 | LC_REQ_DYLD),
         LC_SEGMENT_64    = 0x19,
         LC_ROUTINES_64   = 0x1a,
         LC_UUID          = 0x1b,
         LC_RPATH         = 0x1c,
         LC_CODE_SIGNATURE = 0x1d,
         LC_SEGMENT_SPLIT_INFO = 0x1e,
-        LC_REEXPORT_DYLIB = 0x1f,
+        LC_REEXPORT_DYLIB = (0x1f | LC_REQ_DYLD),
         LC_LAZY_LOAD_DYLIB= 0x20,
         LC_ENCRYPTION_INFO= 0x21,
         LC_DYLD_INFO      = 0x22,  // compressed dyld information (10.6.x)
         LC_DYLD_INFO_ONLY = (0x22|LC_REQ_DYLD),
         LC_VERSION_MIN_MACOSX= 0x24,
+        LC_VERSION_MIN_IPHONEOS= 0x25,
         LC_FUNCTION_STARTS= 0x26,
+        LC_DYLD_ENVIRONMENT= 0x27,  // string as environment variable
         LC_MAIN           = (0x28|LC_REQ_DYLD),
         LC_DATA_IN_CODE   = 0x29,
         LC_SOURCE_VERSION = 0x2a,
+        LC_DYLIB_CODE_SIGN_DRS= 0x2B,
+        LC_ENCRYPTION_INFO_64= 0x2C,
+        LC_VERSION_MIN_TVOS= 0x2F,
+        LC_VERSION_MIN_WATCHOS= 0x30,
     };
+
     enum { // maxprot
         VM_PROT_READ = 1,
         VM_PROT_WRITE = 2,

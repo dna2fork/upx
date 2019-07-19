@@ -3,8 +3,8 @@
 ;
 ;  This file is part of the UPX executable compressor.
 ;
-;  Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-;  Copyright (C) 1996-2017 Laszlo Molnar
+;  Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+;  Copyright (C) 1996-2018 Laszlo Molnar
 ;  All Rights Reserved.
 ;
 ;  UPX and the UCL library are free software; you can redistribute them
@@ -59,18 +59,6 @@ fp .req x29
                 mov w8,#\N
                 svc #0 // sets Carry iff error
                 // orrcs r0,r0,#(1<<31)  // force negative on error; FIXME: needed?
-.endm
-
-.macro          do_dcache_flush  // In: r0=addr; r1=len
-                mov w3,#1  // _sys_dcache_flush
-                mov w8,#(1<<31)  // syscall number?
-                svc #0
-.endm
-
-.macro          do_icache_invalidate  // In: r0=addr; r1=len
-                mov w3,#0  // _sys_icache_invalidate
-                mov w8,#(1<<31)  // syscall number?
-                svc #0
 .endm
 
 #endif  //}

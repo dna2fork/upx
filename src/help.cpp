@@ -2,8 +2,8 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-   Copyright (C) 1996-2017 Laszlo Molnar
+   Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+   Copyright (C) 1996-2018 Laszlo Molnar
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -262,15 +262,6 @@ void show_help(int verbose)
         con_fprintf(f,
                     "  --8086              make compressed sys work on any 8086\n"
                     "\n");
-#if 0
-        fg = con_fg(f,FG_YELLOW);
-        con_fprintf(f,"Options for linux/386\n");
-        fg = con_fg(f,fg);
-        con_fprintf(f,
-                    "  --script             use /usr/local/lib/upx/upx[bd] as decompressor\n"
-                    "  --script=/path/upxX  use path/upxX as decompressor\n"
-                    "\n");
-#endif
         fg = con_fg(f,FG_YELLOW);
         con_fprintf(f,"Options for ps1/exe:\n");
         fg = con_fg(f,fg);
@@ -370,7 +361,7 @@ void show_license(void)
     );
     int fg = con_fg(f,FG_CYAN);
     con_fprintf(f,
-        "        http://upx.sourceforge.net\n"
+        "        https://upx.github.io\n"
         "        http://www.oberhumer.com/opensource/upx/\n"
     );
     (void)con_fg(f,FG_ORANGE);
@@ -421,10 +412,10 @@ void show_version(int x)
     if (v != NULL && v[0])
         fprintf(fp, "LZMA SDK version %s\n", v);
 #endif
-    fprintf(fp, "Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer\n");
-    fprintf(fp, "Copyright (C) 1996-2017 Laszlo Molnar\n");
-    fprintf(fp, "Copyright (C) 2000-2017 John F. Reiser\n");
-    fprintf(fp, "Copyright (C) 2002-2017 Jens Medoch\n");
+    fprintf(fp, "Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer\n");
+    fprintf(fp, "Copyright (C) 1996-2018 Laszlo Molnar\n");
+    fprintf(fp, "Copyright (C) 2000-2018 John F. Reiser\n");
+    fprintf(fp, "Copyright (C) 2002-2018 Jens Medoch\n");
 #if (WITH_ZLIB)
     fprintf(fp, "Copyright (C) 1995" "-2005 Jean-loup Gailly and Mark Adler\n");
 #endif

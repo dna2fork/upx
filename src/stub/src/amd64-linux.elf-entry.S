@@ -2,9 +2,9 @@
 *
 *  This file is part of the UPX executable compressor.
 *
-*  Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-*  Copyright (C) 1996-2017 Laszlo Molnar
-*  Copyright (C) 2000-2017 John F. Reiser
+*  Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+*  Copyright (C) 1996-2018 Laszlo Molnar
+*  Copyright (C) 2000-2018 John F. Reiser
 *  All Rights Reserved.
 *
 *  UPX and the UCL library are free software; you can redistribute them
@@ -65,12 +65,17 @@ M_NRV2D_LE32=5
 M_NRV2E_LE32=8
 
 
+// https://www.uclibc.org/docs/psABI-x86_64.pdf
   section ELFMAINX
+sz_pack2= .-4
 _start: .globl _start
+////    nop; int3  # uncomment for debugging
+        push %rax  // space for entry address
+        push %rdx  // register this function pointer with 'atexit'
         call main  // push &decompress
-ret_main:
 
 /* Returns 0 on success; non-zero on failure. */
+f_exp:  // shorter name
 decompress:  // (uchar const *src, size_t lsrc, uchar *dst, u32 &ldst, uint method)
 
 /* Arguments according to calling convention */
@@ -190,8 +195,11 @@ eof:
         ret
 
 /* These from /usr/include/asm-x86_64/unistd.h */
-__NR_write =  1
-__NR_exit  = 60
+__NR_exit=     60
+__NR_mmap=      9
+__NR_mprotect= 10
+__NR_open=      2
+__NR_write=     1
 
 msg_SELinux:
         push $ L71 - L70; pop %arg3  // length
@@ -212,102 +220,92 @@ die:
         push $ __NR_exit; pop %rax
         syscall
 
-/* Decompress the rest of this loader, and jump to it.
-   Map a page to hold the decompressed bytes.  Logically this could
-   be done by setting .p_memsz for our first PT_LOAD.  But as of 2005-11-09,
-   linux 2.6.14 only does ".bss expansion" on the PT_LOAD that describes the
-   highest address.  [I regard this as a bug, and it makes the kernel's
-   fs/binfmt_elf.c complicated, buggy, and insecure.]  For us, that is the 2nd
-   PT_LOAD, which is the only way that linux allows to set the brk() for the
-   uncompressed program.  [This is a significant kernel misfeature.]
-*/
-unfold:
-        pop %rbx  // &b_info
-  section LUNMP000
-        push $0  // 0-page bread crumb
-  section LUNMP001
-        push $1  // 1-page bread crumb
-  section ELFMAINZu
+// Decompress the rest of this loader, and jump to it.
+unfold:  // IN: rbp= &f_exp; rsp/ &proc_self_exe,%entry
+        pop %arg1  // &proc_self_exe
+        sub %arg2l,%arg2l  // O_RDONLY
+        push $__NR_open; pop %rax
+        syscall
+        push %rax  // save fd
 
-/* Load the addresses and lengths.
-   XXX: 2GB  Note that  PUSH $imm32      sign-extends to 64 bits.
-   XXX: 4GB  Note that  MOVL $imm32,reg  zero-extends to 64-bits.
-   (Use an temporary register to obtain 4GB range on PUSH constant.)
-*/
+        lea -4+ FOLD - proc_self_exe(%arg1),%rsi  // &O_BINFO | is_ptinterp
+        lodsl; and $~1,%eax; movl %eax,%r14d  // O_BINFO
+        push %rsi; pop %rbx  // &b_info of folded decompressor
+        lodsl; xchg %eax,%edx;         add %rbx,%rdx  // .sz_unc; last of unfolded
+        lodsl; xchg %eax,%r13d; lodsl; add %rsi,%r13  // .sz_cpr; last of   folded
 
-#if 1
-/* INFO: newer gas versions (correctly) encode the "push $IMMEDIATE" into
-   a R_X86_64_32S instead of R_X86_64_32 relocation type.
-   Avoid that until tested.
-*/
-        .byte 0x68; .int JMPU   // push $ JMPU (R_X86_64_32)
-        push %rax    // for unmap in fold
-        .byte 0x68; .int LENU   // push $ LENU (R_X86_64_32)
-#else
-        push $ JMPU  // for unmap in fold
-        push %rax    // for unmap in fold
-        push $ LENU  // for unmap in fold
-#endif
-        push %rcx    // ADRX for upx_main
-        push %r15    // LENX for upx_main
+        lea sz_pack2 - f_exp(%rbp),%rcx  // &sz_pack2
+        movl (%rcx),%r15d  // sz_pack2: length before stub
+        subq %r15,%rcx  // elfaddr= &Elf64_Ehdr of this stub
+        subl %r14d,%r15d  // LENX= sz_pack2 - O_BINFO
+          pop %rdi  // fd
+        subq %rcx,%rdx; push %rdx  // LENU
+        push %rax  // %ADRU
+        subq %rcx,%r13  // LENF
+          push %rdi  // fd
+        push %rcx  // elfaddr
 
-/* Get some pages.  If small, then get 1 page located just after the end
-   of the first PT_LOAD of the compressed program.  This will still be below
-   all of the uncompressed program.  If large (>=3 MiB uncompressed), then enough
-   to duplicate the entire compressed PT_LOAD, plus 1 page, located just after
-   the brk() of the _un_compressed program.  The address and length are pre-
-   calculated by PackLinuxElf64amd::defineSymbols().
-*/
-        movl $ ADRM,%edi  // XXX: 4GB
-        push $ PROT_READ | PROT_WRITE | PROT_EXEC; pop %arg3
-        movl $ LENM,%esi  // XXX: 4GB
-        push $ MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS; pop %sys4
-        subl %arg5l,%arg5l  //; subl %arg6l,%arg6l  // MAP_ANON ==> ignore offset
-        push $ SYS_mmap; pop %rax
-        syscall  // %rax= result; trashes %rcx,%r11 only
-        cmpl %eax,%edi; jne msg_SELinux  // XXX: 4GB
+// Reserve space for input file and unfolded stub.
+        subq %arg6,%arg6  // 0 offset
+        orl $-1,%arg5l  // fd
+        push $MAP_PRIVATE|MAP_ANONYMOUS; pop %sys4
+        push %rdx; pop %arg2  // len
+        push $PROT_READ|PROT_WRITE; pop %arg3
+        subl %arg1l,%arg1l  // 0; kernel chooses addr
+        push $__NR_mmap; pop %rax; syscall
+        addq %rax,%r14  // + O_BINFO = ADRX
+        movq %rax,2*8(%rsp)  // ADRU
 
-        movl $ ADRC,%esi
-        movl %edi,%edx  //  ADRM
-        subl %esi,%edx  // (ADRM - ADRC) == relocation amount
-        je L80  // no copy
-        addl      %edx,%ebp  // update &decompress
-        //addl      %edx,%ebx  // copy==>no overlap; unfolded before overwrite
-        addl      %edx,1*8(%rsp)  // update ADRX  XXX: 4GB
-        addl      %edx,3*8(%rsp)  // update ADRU  XXX: 4GB
-        movl %ebx,%ecx  // XXX: 4GB  [&b_info] beyond end of decompressor
-        subl %esi,%ecx  // byte length
-        shrl $3,%ecx  // qwords to copy
-        cld
-        rep; movsq
-L80:
-        xchgl %eax,%edi
+// Duplicate the input data.
+        xchgq %rax,%arg1  // same address
+        //subq %arg6,%arg6  // 0 offset
+        movl 1*8(%rsp),%arg5l  // fd
+        push $MAP_PRIVATE|MAP_FIXED; pop %sys4
+        //push $PROT_READ|PROT_WRITE; pop %arg3
+        movq %r13,%arg2  // len
+        push $__NR_mmap; pop %rax; syscall
 
-/* Decompress the folded part of this stub, then execute it. */
-        movq %rbx,%arg2  // &b_info
-        push %rax  // ret_addr after decompression
-               xchgl %eax,%arg3l  // %arg3= dst for unfolding  XXX: 4GB
-        lodsl; push %rax          // allocate slot on stack
-               movq  %rsp,%arg4   // &len_dst ==> used by lzma for EOF
-        lodsl; xchgl %eax,%arg1l  // sz_cpr  XXX: 4GB
-        lodsl; movzbl %al,%arg5l  // b_method
-              xchg %arg1,%arg2
-        call *%rbp  // decompress
-               pop %rcx  // discard len_dst
-        ret
+// Remember new f_exp region for PROT_EXEC.
+        movq 3*8(%rsp),%rdx  // LENU
+        pop %rcx; push %rcx  // elfaddr
+        addq %rax,%rdx  // new last of unfoded
+        subq %rcx,%rax  // new - old
+        movq %rax,%r12  // relocation constant
+        addq %rbp,%rax; push %rax  // P_10  new f_exp
+        andq $PAGE_MASK,%rax; push %rax  // P_11  address
+        subq %rax,%rdx; push %rdx  // P_12  length
+
+// Unfold
+        movq %rbx,%rsi
+        lodsl; push %rax; movq %rsp,%arg4  // P_13  .sz_unc; &dstlen
+        lea (%rbx,%r12),%arg3  // dst= new unfold
+        movq %arg3,%r13  // execute here
+        lodsl; push %rax  // P_14  tmp= .sz_cpr
+        lodsl; xchg %eax,%arg5l  // .b_method
+        movq %rsi,%arg1  // src
+        pop %arg2  // P_14  srclen
+        call *%rbp  // old f_exp
+        pop %ecx  // P_13  toss .sz_unc
+
+// PROT_EXEC
+        pop %arg2  // P_12  length
+        pop %arg1  // P_11  addr
+        pop %rbp   // P_10  new f_exp
+        push $PROT_READ|PROT_EXEC; pop %arg3
+        push $__NR_mprotect; pop %rax; syscall
+
+// Use the copy.
+// %r14= ADRX; %r15= LENX;
+// rsp/ elfaddr,fd,ADRU,LENU,%entry
+        jmp *%r13
 
 main:
-////    nop; int3  # uncomment for debugging
-        pop %rbp  // &decompress
-        lea -4-(ret_main - _start)(%rbp),%rax  // &sz_pack2
-        movl (%rax),%r15d  // sz_pack2: length before stub
-        subq %r15,%rax  // ADRU= &Elf64_Ehdr of this stub (ET_DYN)
-        movzwl e_phnum(%rax),%edx
-        imul $ sz_Phdr,%edx  // sz_phdrs
-        addl $ sz_Ehdr + sz_l_info + sz_p_info,%edx  // sz_elf_hdrs
-        subl %edx,%r15d  // LENX for upx_main
-        lea (%rax,%rdx),%rcx  // ADRX= &b_info of user program for upx_main
-        call unfold  // push &b_info of folded_loader
+        pop %rbp  // &f_exp
+        call unfold
+proc_self_exe:
+        .asciz "/proc/self/exe"
+        .long O_BINFO  // offset of b_info for .text
+FOLD:
         // { b_info={sz_unc, sz_cpr, {4 char}}, folded_loader...}
 
 /*__XTHEENDX__*/

@@ -2,9 +2,9 @@
 *
 *  This file is part of the UPX executable compressor.
 *
-*  Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-*  Copyright (C) 1996-2017 Laszlo Molnar
-*  Copyright (C) 2000-2017 John F. Reiser
+*  Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+*  Copyright (C) 1996-2018 Laszlo Molnar
+*  Copyright (C) 2000-2018 John F. Reiser
 *  All Rights Reserved.
 *
 *  UPX and the UCL library are free software; you can redistribute them
@@ -34,7 +34,10 @@
 
 #define bkpt .long 0xe7f001f0  /* reserved instr; Linux GNU eabi breakpoint */
 sz_Elf32_Phdr =  8*4
+  p_vaddr = 2*4
 sz_Elf32_Ehdr = 13*4
+  e_type= 16
+    ET_DYN= 3
   e_phnum= 16 + 2*2 + 5*4 + 2*2
 
 sz_b_info= 12
@@ -48,14 +51,21 @@ PROT_READ=  1
 PROT_WRITE= 2
 PROT_EXEC=  4
 
+MAP_ANONYMOUS= 0x20
 MAP_FIXED=     0x10
+MAP_PRIVATE=   0x02
+
+O_RDONLY=       0
 
 PAGE_SHIFT= 12
 PAGE_SIZE = -(~0<<PAGE_SHIFT)
 
 __NR_exit =      1 + __NR_SYSCALL_BASE
+__NR_open =      5 + __NR_SYSCALL_BASE
+
 __NR_write =     4 + __NR_SYSCALL_BASE
 __NR_mmap64 = 0xc0 + __NR_SYSCALL_BASE
+__NR_mprotect= 125 + __NR_SYSCALL_BASE
 
 __ARM_NR_BASE  = 0xf0000 + __NR_SYSCALL_BASE
 __ARM_NR_cacheflush =  2 + __ARM_NR_BASE
@@ -64,112 +74,130 @@ __ARM_NR_cacheflush =  2 + __ARM_NR_BASE
 #define DEBUG 0
 #endif  /*}*/
 
-        //.long sz_pack2  // placed there by ::pack3()
-  section ELFMAINX
-start_params:
-        .long ADRM  // dst  for map
-        .long LENF  // end_decompress - (start_params -4)
-        .long CPR0  //           cpr0 - (start_params -4)
-mflg:
-        .long MFLG  // MAP_{PRIVATE|ANONYMOUS}  // QNX vs linux
-_start: .globl _start
-////    nop; bkpt
-/* Get some pages: enough
-   to duplicate the entire compressed PT_LOAD, plus 1 page, located just after
-   the brk() of the _un_compressed program.  The address is pre-calculated
-   calculated by PackLinuxElf32arm::addLinkerSymbols().
-*/
-
-#if DEBUG  /*{*/
+#if DEBUG  //{
 #define TRACE_REGS r0-r12,r14,r15
 // sp (r13) is not included because the write-back might cause UNDEFINED behavior
 // if the write-back register is not first or last.  The actual value of sp
 // usually does not matter.  Just remember that lr (r14) and pc (r15) are stored
 // one word closer to the stack pointer because r13 has been omitted.
+#endif  //}
 
+        //.long sz_pack2  // placed there by ::pack3()
+  section ELFMAINX
+start_params:
+sz_pack2= . - 4
+mflg:
+        .long MFLG  // MAP_{PRIVATE|ANONYMOUS}  // QNX vs linux
+_start: .globl _start
+////    nop; bkpt
+        sub sp,sp,#6*4
+F_elfaddr= 0*4
+F_fd=      1*4
+F_ADRU=    2*4
+F_LENU=    3*4
+F_f_exp=   4*4
+F_entry=   5*4
+  F_mflg=    F_entry
+
+        bl main  // lr= &f_exp
+f_exp:
+#define LINUX_ARM_CACHEFLUSH 1
+
+  section NRV_HEAD
+        // empty
+  section NRV_TAIL
+        // empty
+
+  section NRV2E
+#include "arch/arm/v4a/nrv2e_d8.S"
+
+  section NRV2D
+#include "arch/arm/v4a/nrv2d_d8.S"
+
+  section NRV2B
+#include "arch/arm/v4a/nrv2b_d8.S"
+
+#include "arch/arm/v4a/lzma_d.S"
+
+  section ELFMAINY
+end_decompress: .globl end_decompress
+        /* IDENTSTR goes here */
+
+section ELFMAINZ
+unfold:  // in: r3= mflg; lr= &O_BINFO
+        str r3,[sp,#F_mflg]
+        mvn r10,r6; add r10,r10,#1  @ "neg r10,r6": -elfaddr
+        add r6,lr,#4  @ &b_info of folded code
+        add r14,r6,r10  @ offset(b_info)
+
+// Reserve space for input file and unfolded stub
+        ldr r1,[r6,#sz_unc]
+        mov r5,#0  @ offset
+        mov r4,#-1  @ fd
+        @r3= mflg  @ MAP_PRIVATE|MAP_ANONYMOUS or MAP_PRIVANON
+        mov r2,#PROT_READ|PROT_WRITE
+        add r1,r1,r14  @ length= .sz_unc + offset(b_info)
+        mov r0,#0  @ kernel chooses addr
+        str r1,[sp,#F_LENU]  @ length to munmap
+        do_sys7t __NR_mmap64
+        str r0,[sp,#F_ADRU]  @ addr to munmap
+#if DEBUG  /*{*/
         stmdb sp!,{TRACE_REGS}; mov r0,#1; bl trace
 #endif  /*}*/
-        adr r12,start_params -4  // &sz_pack2
-        ldmia r12,{r1,r2, r10,r11,lr}  // r1= sz_pack2; r2= ADRM; r10= LENF;
-                                       //r11= CPR0; lr= MFLG
-        mov r0,r2  // ADRM
-        add r11,r11,r12  // cpr0
-        add r10,r10,r12  // end_decompress
-        ldr r3,[r11,# sz_unc]
-        sub r9,r12,r1  // &our_Elf32_Ehdr
-        mov r2,r1  // sz_pack2
-        add r1,r1,r3  // sz_pack2 + cpr0.sz_unc
-        add r1,r1,# PAGE_SIZE
-  section LUNMP000
-        mov r3,#0<<12  // 0-page crumb
-  section LUNMP001
-        mov r3,#1<<12  // 1-page crumb
-  section ELFMAINXu
-        stmdb sp!,{r0,r1,r2,r3,lr}  // ADRU,LENU,sz_pack2{later sz_unc},crumb,MFLG
-SP_MFLG= 4*4
-D_sz_unc=2*4  // stack displacement to sz_unc
-        mov r2,#PROT_READ | PROT_WRITE | PROT_EXEC
-        ldr r3,[r12, #mflg - (start_params -4)]  // MAP_{PRIVATE|ANON}
-        mov r12,r9  // &our_Elf32_Ehdr
-        mov r5,#0  // offset= 0
-        mvn r4,#0  // fd= -1; cater to *BSD for fd when MAP_ANON
-        orr r3,r3,#MAP_FIXED
-#if defined(ARMEL_EABI4)  /*{*/
-        mov r7,#__NR_mmap64
-        swi 0
-#else  /*}{*/
-        swi __NR_mmap64
-#endif  /*}*/
+
+// Duplicate the input data
+        ldr r1,[r6,#sz_cpr]
+        @mov r5,#0
+        ldr r4,[sp,#F_fd]
+        mov r3,#MAP_PRIVATE|MAP_FIXED
+        @mov r2,#PROT_READ|PROT_WRITE
+        add r1,r1,r14  @ length= .sz_cpr + offset(b_info)
+        @mov r0,r0  @ same address
+        do_sys7t __NR_mmap64
+        add r10,r0,r10  @ relocation amount= (new - old)
+
+// Unfold
+        ldr r3,[r6,#sz_unc]; str r3,[sp,#-4]!  @ P_01
+        mov r3,sp  @ &sz_unc
+        ldrb r0,[r6,#b_method]; str r0,[sp,#-4]!  @ P_02  5th param to f_exp
+        add r2,r6,r10  @ dst= reloc(&b_info)
+        ldr r1,[r6,#sz_cpr]  @ srclen
+        add r0,r6,#3*4  @ src
+        mov r4,r2  @ copy of dst
 #if DEBUG  /*{*/
         stmdb sp!,{TRACE_REGS}; mov r0,#2; bl trace
 #endif  /*}*/
-        cmn r0,#4096
-        bcs msg_SELinux
-copy:
-        ldmia r9!,{r1,r2,r3,r4,r5,r6,r7,r8}; cmp r9,r10  // upto end-decompress
-        stmia r0!,{r1,r2,r3,r4,r5,r6,r7,r8}; blo copy
+        mov lr,pc; ldr pc,[sp,#2*4+ F_f_exp]  @ call f_exp  [ARMv4 lacks blx]
+        add sp,sp,#4  @ P_02  remove 5th param
+        ldr r3,[sp],#4  @ P_01  sz_unc
 
-        sub r4,r0,r9  // relocation amount
-        ldr r1,[sp,#SP_MFLG]
-        adr r5,f_decompress
-        str r1,[r0],#4  // MFLG at -4+ fold_begin
-        mov lr,r0  // dst for unfolded code
-        add r5,r5,r4  // relocated f_decompress
+        ldr r1,[sp,#F_mflg]  @ mflg
+        ldr r0,[r4]  @ "orr r3,r3,#0" at mflg_subr
+        orr r0,r0,r1  @ change the 8-bit immediate
+        str r0,[r4]
 
-        mov r0,r5
-        add r1,r9,r4  // relocated end_decompress
-        mov r2,#0
-#if defined(ARMEL_EABI4)  /*{*/
-        mov r7,   #__ARM_NR_cacheflush& 0xff
-        orr r7,r7,#__ARM_NR_cacheflush&~0xff
-        swi 0
-#else  /*}{*/
-        swi __ARM_NR_cacheflush
-#endif  /*}*/
+// PROT_EXEC
+        ldr r0,[sp,#F_f_exp]
+          add r1,r3,r6   @ old last needed
+        add r0,r0,r10  @ reloc(f_exp)
+          add r1,r1,r10  @ new last needed
+        str r0,[sp,#F_f_exp]  @ new f_exp
+        mov r0,r0,lsr #PAGE_SHIFT  @ round down
+          mov r2,#PROT_EXEC|PROT_READ
+        mov r0,r0, lsl #PAGE_SHIFT
+          sub r1,r1,r0  @ length
+        do_sys7t __NR_mprotect
 
-        ldrh r10,[r12,#e_phnum]
-        mov r0,#sz_Elf32_Phdr
-        ldr r9,[sp,#D_sz_unc]  // sz_pack2
-        mul r10,r0,r10
-        add r10,r10,#sz_Elf32_Ehdr + sz_l_info + sz_p_info  // O_BINFO
-        sub r9,r9,r10  // total compressed size
-        add r10,r10,r12  // + &our_Elf32_Ehdr
-        add r10,r10,r4  // relocated &b_info
-
-        ldr r0,[r11,# b_method ]  // 5th param (whole word: endian issues!)
-        stmdb sp!,{r0, lr}  // 5th param, dst for unfolded
-D_stm1=2*4
-        ldr  r3,[r11,# sz_unc]
-        add  r0, r11,# sz_b_info
-        ldr  r1,[r11,# sz_cpr ]
-        mov  r2,lr  // dst
-        str  r3,[sp,#D_stm1 + D_sz_unc]  // sz_unc; lzma needs for EOF
-        add  r3, sp,#D_stm1 + D_sz_unc   // &sz_unc
+// Use the copy
+        ldr r1,[r6,#-4]  @ O_BINFO
+        ldr r0,[sp,#F_ADRU]
+        sub r4,r9,r1  @ LENX= sz_pack2 - O_BINFO
+        add r5,r0,r1  @ ADRX= new Elf32_Ehdr + O_BINFO
+        add r6,r6,#2*4  @ past mflg_subr
 #if DEBUG  /*{*/
         stmdb sp!,{TRACE_REGS}; mov r0,#3; bl trace
 #endif  /*}*/
-        mov lr,pc; mov pc,r5  // decompress folded code [opcode 'blx' not in v4a]
-        ldmia sp!,{r1, pc}  // discard 5th param; goto unfolded
+        add pc,r6,r10  @ goto reloc(unfold)
 
 #if DEBUG  /*{*/
 TRACE_BUFLEN=512
@@ -223,53 +251,30 @@ hex:
         .ascii "0123456789abcdef"
 #endif  /*}*/
 
-f_decompress:
-#define LINUX_ARM_CACHEFLUSH 1
+proc_self_exe:
+        .asciz "/proc/self/exe"
+        .balign 4
 
-  section NRV_HEAD
-        // empty
-  section NRV_TAIL
-        // empty
+main:  // IN: lr= &f_exp
+        ldr r0,[lr,#sz_pack2 - f_exp]  @ sz_pack2
+        add r6, lr,#sz_pack2 - f_exp  @ &sz_pack2
+        str lr,[sp,#F_f_exp]
+        sub r6,r6,r0  @ elfaddr= &Elf_Ehdr of this program
+        str r6,[sp,#F_elfaddr]
+        mov r9,r0  @ save sz_pack2
 
-  section NRV2E
-#include "arch/arm/v4a/nrv2e_d8.S"
+// Open /proc/self/exe
+        adr r0,proc_self_exe
+        mov r1,#O_RDONLY
+        do_sys7t __NR_open
+        str r0,[sp,#F_fd]
 
-  section NRV2D
-#include "arch/arm/v4a/nrv2d_d8.S"
-
-  section NRV2B
-#include "arch/arm/v4a/nrv2b_d8.S"
-
-#include "arch/arm/v4a/lzma_d.S"
-
-  section ELFMAINY
-end_decompress: .globl end_decompress
-
-msg_SELinux:
-        mov r2,#L71 - L70  // length
-        adr r1,L70  // message text
-        mov r0,#2  // fd stderr
-#if defined(ARMEL_EABI4)  /*{*/
-        mov r7,#__NR_write
-        swi 0
-#else  /*}{*/
-        swi __NR_write
-#endif  /*}*/
-die:
-        mov r0,#127
-#if defined(ARMEL_EABI4)  /*{*/
-        mov r7,#__NR_exit
-        swi 0
-#else  /*}{*/
-        swi __NR_exit
-#endif  /*}*/
-L70:
-        .asciz "PROT_EXEC|PROT_WRITE failed.\n"
-L71:
-        /* IDENTSTR goes here */
-
-  section ELFMAINZ
+        ldr r3,[lr,#mflg - f_exp]
+        call unfold
+o_binfo:
+        .long O_BINFO  // .int4 offset of b_info for text
 cpr0: .globl cpr0
         /* { b_info={sz_unc, sz_cpr, {4 char}}, folded_loader...} */
+eof:
 
 /* vim:set ts=8 sw=8 et: */

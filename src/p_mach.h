@@ -2,8 +2,8 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-   Copyright (C) 1996-2017 Laszlo Molnar
+   Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+   Copyright (C) 1996-2018 Laszlo Molnar
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -29,6 +29,7 @@
 #ifndef __UPX_P_MACHO_H
 #define __UPX_P_MACHO_H 1
 
+#include "conf.h"
 
 __packed_struct(Mach_fat_header)
     BE32 magic;
@@ -287,7 +288,9 @@ template <class TMachITypes>
 __packed_struct(Mach_linkedit_data_command)
     typedef typename TMachITypes::Word Word;
 
-    Word cmd;
+    Word cmd;  // LC_CODE_SIGNATURE, LC_SEGMENT_SPLIT_INFO,
+               // LC_FUNCTION_STARTS, LC_DATA_IN_CODE,
+               // LC_DYLIB_CODE_SIGN_DRS, LC_LINKER_OPTIMIZATION_HINT
     Word cmdsize;
     Word dataoff;  // file offset of data in __LINKEDIT segment
     Word datasize;  // file size of data in __LINKEDIT segment
@@ -333,6 +336,7 @@ __packed_struct(Mach_source_version_command)
     Word cmd;  // LC_SOURCE_VERSION
     Word cmdsize;  // 16
     Word version;
+    Word __pad;  // to 0 mod 8
 __packed_struct_end()
 
 template <class TMachITypes>
@@ -389,26 +393,6 @@ __packed_struct(Mach_load_dylib_command)
     Word cmd;
     Word cmdsize;
     Mach_dylib<TMachITypes> dylib;
-__packed_struct_end()
-
-template <class TMachITypes>
-__packed_struct(Mach_function_starts_command)
-    typedef typename TMachITypes::Word Word;
-
-    Word cmd;
-    Word cmdsize;
-    Word dataoff;
-    Word datasize;
-__packed_struct_end()
-
-template <class TMachITypes>
-__packed_struct(Mach_data_in_code_command)
-    typedef typename TMachITypes::Word Word;
-
-    Word cmd;
-    Word cmdsize;
-    Word dataoff;
-    Word datasize;
 __packed_struct_end()
 
 }  // namespace N_Mach
@@ -558,8 +542,6 @@ struct MachClass_32
     typedef N_Mach::Mach_twolevel_hints_command<MachITypes> Mach_twolevel_hints_command;
     typedef N_Mach::Mach_linkedit_data_command<MachITypes> Mach_linkedit_data_command;
     typedef N_Mach::Mach_uuid_command<MachITypes> Mach_uuid_command;
-    typedef N_Mach::Mach_data_in_code_command<MachITypes> Mach_data_in_code_command;
-    typedef N_Mach::Mach_function_starts_command<MachITypes> Mach_function_starts_command;
     typedef N_Mach::Mach_load_dylib_command<MachITypes> Mach_load_dylib_command;
     typedef N_Mach::Mach_dylib<MachITypes> Mach_dylib;
     typedef N_Mach::Mach_load_dylinker_command<MachITypes> Mach_load_dylinker_command;
@@ -602,8 +584,6 @@ struct MachClass_64
     typedef N_Mach::Mach_twolevel_hints_command<MachITypes> Mach_twolevel_hints_command;
     typedef N_Mach::Mach_linkedit_data_command<MachITypes> Mach_linkedit_data_command;
     typedef N_Mach::Mach_uuid_command<MachITypes> Mach_uuid_command;
-    typedef N_Mach::Mach_data_in_code_command<MachITypes> Mach_data_in_code_command;
-    typedef N_Mach::Mach_function_starts_command<MachITypes> Mach_function_starts_command;
     typedef N_Mach::Mach_load_dylib_command<MachITypes> Mach_load_dylib_command;
     typedef N_Mach::Mach_dylib<MachITypes> Mach_dylib;
     typedef N_Mach::Mach_load_dylinker_command<MachITypes> Mach_load_dylinker_command;
@@ -642,8 +622,6 @@ typedef MachClass_Host32::Mach_twolevel_hints_command Mach32_twolevel_hints_comm
 typedef MachClass_Host32::Mach_linkedit_data_command Mach32_linkedit_data_command;
 typedef MachClass_Host32::Mach_uuid_command Mach32_uuid_command;
 typedef MachClass_Host32::Mach_main_command Mach32_main_command;
-typedef MachClass_Host32::Mach_data_in_code_command Mach32_data_in_code_command;
-typedef MachClass_Host32::Mach_function_starts_command Mach32_function_starts_command;
 typedef MachClass_Host32::Mach_load_dylib_command Mach32_load_dylib_command;
 typedef MachClass_Host32::Mach_dylib Mach32_dylib;
 typedef MachClass_Host32::Mach_load_dylinker_command Mach32_load_dylinker_command;
@@ -661,8 +639,6 @@ typedef MachClass_Host64::Mach_twolevel_hints_command Mach64_twolevel_hints_comm
 typedef MachClass_Host64::Mach_linkedit_data_command Mach64_linkedit_data_command;
 typedef MachClass_Host64::Mach_uuid_command Mach64_uuid_command;
 typedef MachClass_Host64::Mach_main_command Mach64_main_command;
-typedef MachClass_Host64::Mach_data_in_code_command Mach64_data_in_code_command;
-typedef MachClass_Host64::Mach_function_starts_command Mach64_function_starts_command;
 typedef MachClass_Host64::Mach_load_dylib_command Mach64_load_dylib_command;
 typedef MachClass_Host64::Mach_dylib Mach64_dylib;
 typedef MachClass_Host64::Mach_load_dylinker_command Mach64_load_dylinker_command;
@@ -680,8 +656,6 @@ typedef MachClass_BE32::Mach_twolevel_hints_command   MachBE32_twolevel_hints_co
 typedef MachClass_BE32::Mach_linkedit_data_command   MachBE32_linkedit_data_command;
 typedef MachClass_BE32::Mach_uuid_command   MachBE32_uuid_command;
 typedef MachClass_BE32::Mach_main_command MachBE32_main_command;
-typedef MachClass_BE32::Mach_data_in_code_command MachBE32_data_in_code_command;
-typedef MachClass_BE32::Mach_function_starts_command MachBE32_function_starts_command;
 typedef MachClass_BE32::Mach_load_dylib_command MachBE32_load_dylib_command;
 typedef MachClass_BE32::Mach_dylib MachBE32_dylib;
 typedef MachClass_BE32::Mach_load_dylinker_command MachBE32_load_dylinker_command;
@@ -699,8 +673,6 @@ typedef MachClass_BE64::Mach_twolevel_hints_command   MachBE64_twolevel_hints_co
 typedef MachClass_BE64::Mach_linkedit_data_command   MachBE64_linkedit_data_command;
 typedef MachClass_BE64::Mach_uuid_command   MachBE64_uuid_command;
 typedef MachClass_BE64::Mach_main_command MachBE64_main_command;
-typedef MachClass_BE64::Mach_data_in_code_command MachBE64_data_in_code_command;
-typedef MachClass_BE64::Mach_function_starts_command MachBE64_function_starts_command;
 typedef MachClass_BE64::Mach_load_dylib_command MachBE64_load_dylib_command;
 typedef MachClass_BE64::Mach_dylib MachBE64_dylib;
 typedef MachClass_BE64::Mach_load_dylinker_command MachBE64_load_dylinker_command;
@@ -718,8 +690,6 @@ typedef MachClass_LE32::Mach_twolevel_hints_command   MachLE32_twolevel_hints_co
 typedef MachClass_LE32::Mach_linkedit_data_command   MachLE32_linkedit_data_command;
 typedef MachClass_LE32::Mach_uuid_command   MachLE32_uuid_command;
 typedef MachClass_LE32::Mach_main_command  MachLE32_main_command;
-typedef MachClass_LE32::Mach_data_in_code_command  MachLE32_data_in_code_command;
-typedef MachClass_LE32::Mach_function_starts_command  MachLE32_function_starts_command;
 typedef MachClass_LE32::Mach_load_dylib_command  MachLE32_load_dylib_command;
 typedef MachClass_LE32::Mach_dylib  MachLE32_dylib;
 typedef MachClass_LE32::Mach_load_dylinker_command  MachLE32_load_dylinker_command;
@@ -737,8 +707,6 @@ typedef MachClass_LE64::Mach_twolevel_hints_command   MachLE64_twolevel_hints_co
 typedef MachClass_LE64::Mach_linkedit_data_command   MachLE64_linkedit_data_command;
 typedef MachClass_LE64::Mach_uuid_command   MachLE64_uuid_command;
 typedef MachClass_LE64::Mach_main_command MachLE64_main_command;
-typedef MachClass_LE64::Mach_data_in_code_command MachLE64_data_in_code_command;
-typedef MachClass_LE64::Mach_function_starts_command MachLE64_function_starts_command;
 typedef MachClass_LE64::Mach_load_dylib_command MachLE64_load_dylib_command;
 typedef MachClass_LE64::Mach_dylib MachLE64_dylib;
 typedef MachClass_LE64::Mach_load_dylinker_command MachLE64_load_dylinker_command;
@@ -781,8 +749,6 @@ protected:
     typedef typename MachClass::Mach_linkedit_data_command Mach_linkedit_data_command;
     typedef typename MachClass::Mach_uuid_command Mach_uuid_command;
     typedef typename MachClass::Mach_main_command Mach_main_command;
-    typedef typename MachClass::Mach_data_in_code_command Mach_data_in_code_command;
-    typedef typename MachClass::Mach_function_starts_command Mach_function_starts_command;
     typedef typename MachClass::Mach_load_dylib_command Mach_load_dylib_command;
     typedef typename MachClass::Mach_dylib Mach_dylib;
     typedef typename MachClass::Mach_load_dylinker_command Mach_load_dylinker_command;
@@ -800,7 +766,7 @@ public:
     // called by the generic pack()
     virtual void pack1(OutputFile *, Filter &);  // generate executable header
     virtual int  pack2(OutputFile *, Filter &);  // append compressed data
-    virtual void pack3(OutputFile *, Filter &) /*= 0*/;  // append loader
+    virtual off_t pack3(OutputFile *, Filter &) /*= 0*/;  // append loader
     virtual void pack4(OutputFile *, Filter &) /*= 0*/;  // append PackHeader
 
     virtual void pack4dylib(OutputFile *, Filter &, Addr init_address);
@@ -853,8 +819,8 @@ protected:
     upx_byte const *stub_main;
     Mach_segment_command *rawmseg;  // as input, with sections
     Mach_segment_command *msegcmd;  // LC_SEGMENT first, without sections
-    unsigned o_routines_cmd;  // file offset to LC_ROUINTES
-    upx_uint64_t prev_init_address;
+    unsigned o__mod_init_func;  // file offset to __DATA.__mod_init_func Mach_section_command
+    upx_uint64_t prev_mod_init_func;
     upx_uint64_t pagezero_vmsize;
     Mach_header mhdri;
 
@@ -1023,7 +989,7 @@ public:
     virtual const char *getName() const { return "dylib/ppc32"; }
     virtual const char *getFullName(const options_t *) const { return "powerpc-darwin.dylib"; }
 protected:
-    virtual void pack3(OutputFile *, Filter &);  // append loader
+    virtual off_t pack3(OutputFile *, Filter &);  // append loader
     virtual void pack4(OutputFile *, Filter &);  // append PackHeader
 };
 
@@ -1038,7 +1004,7 @@ public:
     virtual const char *getName() const { return "dylib/ppc64le"; }
     virtual const char *getFullName(const options_t *) const { return "powerpc64le-darwin.dylib"; }
 protected:
-    virtual void pack3(OutputFile *, Filter &);  // append loader
+    virtual off_t pack3(OutputFile *, Filter &);  // append loader
     virtual void pack4(OutputFile *, Filter &);  // append PackHeader
 };
 
@@ -1105,7 +1071,7 @@ public:
     virtual const char *getName() const { return "dylib/i386"; }
     virtual const char *getFullName(const options_t *) const { return "i386-darwin.dylib"; }
 protected:
-    virtual void pack3(OutputFile *, Filter &);  // append loader
+    virtual off_t pack3(OutputFile *, Filter &);  // append loader
     virtual void pack4(OutputFile *, Filter &);  // append PackHeader
 };
 
@@ -1173,7 +1139,7 @@ public:
     virtual const char *getName() const { return "dylib/amd64"; }
     virtual const char *getFullName(const options_t *) const { return "amd64-darwin.dylib"; }
 protected:
-    virtual void pack3(OutputFile *, Filter &);  // append loader
+    virtual off_t pack3(OutputFile *, Filter &);  // append loader
     virtual void pack4(OutputFile *, Filter &);  // append PackHeader
 };
 
@@ -1241,7 +1207,6 @@ public:
     virtual const char *getName() const { return "macho/arm64"; }
     virtual const char *getFullName(const options_t *) const { return "arm64-darwin.macho"; }
 protected:
-    virtual const int *getCompressionMethods(int method, int level) const;
     virtual const int *getFilters() const;
 
     virtual void pack1_setup_threado(OutputFile *const fo);

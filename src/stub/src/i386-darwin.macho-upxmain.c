@@ -2,9 +2,9 @@
 
    This file is part of the UPX executable compressor.
 
-   Copyright (C) 1996-2017 Markus Franz Xaver Johannes Oberhumer
-   Copyright (C) 1996-2017 Laszlo Molnar
-   Copyright (C) 2000-2017 John F. Reiser
+   Copyright (C) 1996-2018 Markus Franz Xaver Johannes Oberhumer
+   Copyright (C) 1996-2018 Laszlo Molnar
+   Copyright (C) 2000-2018 John F. Reiser
    All Rights Reserved.
 
    UPX and the UCL library are free software; you can redistribute them
@@ -29,6 +29,7 @@
    <jreiser@users.sourceforge.net>
  */
 
+#define __WORDSIZE 32
 #include <stdio.h>
 #include <stdlib.h>
 #include "include/darwin.h"
@@ -558,7 +559,7 @@ ERR_LAB
         }
         addr += mlen + frag;  /* page boundary on hi end */
         if (
-#if defined(SIMULATE_ON_DEBIAN_EABI4)  /*{*/
+#if defined(SIMULATE_ON_LINUX_EABI4)  /*{*/
             0!=addr &&
 #endif  /*}*/
                         addr < haddr) { // need pages for .bss
